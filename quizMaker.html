@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bowl JSON Builder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+            :root {
+      --bg: #fff8f4;
+      --panel: #fffdfb;
+      --muted: #a1745e;
+      --text: #4b2e2e;
+      --accent: #f4a261;
+      --accent-dark: #e76f51;
+      --border: #f2d6c2;
+      --handle: #b08968;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1 {
+      margin: 0 0 16px;
+      font-size: 26px;
+      color: var(--accent-dark);
+    }
+    .bar {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: center;
+    }
+    button, select, input, textarea {
+      background: var(--panel); color: var(--text); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 12px;
+    }
+    input, textarea {
+        font-size: x-large;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    button {
+      cursor: pointer; transition: background 0.2s ease;
+      font-weight: 500;
+    }
+    button.primary {
+      background: var(--accent); color: white; border-color: var(--accent-dark);
+    }
+    button.secondary {
+      background: var(--accent-dark); color: white; border-color: var(--accent-dark);
+    }
+    button.ghost {
+      background: transparent; border-color: var(--border);
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .items {
+      display: flex; flex-direction: column; gap: 14px; margin-top: 10px;
+    }
+    .item {
+      display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: start;
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+      background: #fff3e9;
+    }
+    .handle {
+      user-select: none; cursor: grab; width: 28px; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--handle); font-weight: 700; font-size: 18px;
+    }
+    .fields {
+      display: grid; grid-template-columns: repeat(12, 1fr); gap: 10px;
+    }
+    .field {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .field label {
+      font-size: 13px; color: var(--muted);
+    }
+    .id-badge {
+      font-family: monospace;
+      font-size: 12px; color: var(--muted);
+      background: #fceee3; border: 1px dashed var(--border); padding: 6px 8px; border-radius: 8px;
+    }
+    .actions {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;
+    }
+    .json-area {
+      width: 100%; min-height: 180px; font-family: monospace;
+      background: #fff3e9; border-radius: 12px; padding: 14px;
+      border: 1px solid var(--border);
+    }
+    .hint {
+      font-size: 13px; color: var(--muted);
+    }
+    @media (max-width: 900px) {
+      .fields { grid-template-columns: repeat(6, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .fields { grid-template-columns: repeat(3, 1fr); }
+    }
+    /* Add this to your styles */
+    .field-group-inline {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    align-items: end;
+    }
+  </style>
+</head>
+<body>
+  <h1>Bowl Builder</h1>
+
+  <div class="bar">
+    <button class="primary" id="addItemBtn">Add item</button>
+    <button class="ghost" id="clearAllBtn">Clear all</button>
+    <button class="secondary" id="copyBtn">Copy JSON</button>
+    <button class="secondary" id="downloadBtn">Download JSON</button>
+    <span class="hint">Drag the ⋮ handle to reorder. Choices and catagory empty → null. Score can be number or string.</span>
+  </div>
+
+  <div class="card">
+    <div id="items" class="items"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="bar" style="justify-content: space-between;">
+      <strong>JSON output</strong>
+      <div class="actions">
+        <button id="formatBtn">Reformat</button>
+        <button id="loadBtn">Load from JSON</button>
+      </div>
+    </div>
+    <textarea id="jsonOutput" class="json-area" spellcheck="false"></textarea>
+  </div>
+
+  <script>
+    (function () {
+      const itemsEl = document.getElementById('items');
+      const addItemBtn = document.getElementById('addItemBtn');
+      const clearAllBtn = document.getElementById('clearAllBtn');
+      const copyBtn = document.getElementById('copyBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const jsonOutput = document.getElementById('jsonOutput');
+      const formatBtn = document.getElementById('formatBtn');
+      const loadBtn = document.getElementById('loadBtn');
+
+      let items = [];
+      let dragSrcIndex = null;
+
+      function uid() {
+        if (crypto && crypto.randomUUID) return crypto.randomUUID();
+        return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+      }
+
+      function normalizeStringOrNull(v) {
+        const t = (v ?? '').toString().trim();
+        return t === '' ? null : t;
+      }
+
+      function normalizeScore(v) {
+        const t = (v ?? '').toString().trim();
+        if (t === '') return null;
+        // If it's a valid number string (int or float), store as Number; else keep as string
+        const num = Number(t);
+        return Number.isFinite(num) && t.match(/^[+-]?(\d+(\.\d+)?|\.\d+)$/) ? num : t;
+      }
+
+      function newItem() {
+        return {
+          id: uid(),
+          question: '',
+          a: null,
+          b: null,
+          c: null,
+          d: null,
+          e: null,
+          score: null,
+          correct: '',
+          catagory: null, // intentionally spelled per request
+          type: 'normal'
+        };
+      }
+
+      function render() {
+        itemsEl.innerHTML = '';
+        items.forEach((item, index) => {
+          const li = document.createElement('div');
+          li.className = 'item';
+          li.draggable = true;
+          li.dataset.index = index;
+
+          // Handle
+          const handle = document.createElement('div');
+          handle.className = 'handle';
+          handle.title = 'Drag to reorder';
+          handle.textContent = '⋮⋮';
+
+          // Fields
+          const fields = document.createElement('div');
+          fields.className = 'fields';
+
+          // Row layout helpers
+          function field(colSpan, label, inputEl) {
+            const wrap = document.createElement('div');
+            wrap.className = 'field';
+            wrap.style.gridColumn = 'span ' + colSpan;
+            const lab = document.createElement('label');
+            lab.textContent = label;
+            wrap.appendChild(lab);
+            wrap.appendChild(inputEl);
+            return wrap;
+          }
+
+          // ID (read-only)
+          const idBadge = document.createElement('div');
+          idBadge.className = 'id-badge';
+          idBadge.textContent = item.id;
+
+          // Inputs
+          const qInput = document.createElement('textarea');
+          qInput.rows = 2; qInput.value = item.question;
+
+          const aInput = document.createElement('input'); aInput.value = item.a ?? '';
+          const bInput = document.createElement('input'); bInput.value = item.b ?? '';
+          const cInput = document.createElement('input'); cInput.value = item.c ?? '';
+          const dInput = document.createElement('input'); dInput.value = item.d ?? '';
+          const eInput = document.createElement('input'); eInput.value = item.e ?? '';
+
+          const correctInput = document.createElement('input'); correctInput.value = item.correct ?? '';
+
+          const scoreInput = document.createElement('input'); scoreInput.value = item.score ?? '';
+
+          const catInput = document.createElement('input'); catInput.value = item.catagory ?? '';
+
+          const typeSelect = document.createElement('select');
+          ['normal','poll','variable'].forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt; o.textContent = opt;
+            if (item.type === opt) o.selected = true;
+            typeSelect.appendChild(o);
+          });
+
+          fields.appendChild(field(12, 'Question', qInput));
+          fields.appendChild(field(2, 'Correct', correctInput));
+          fields.appendChild(field(2, 'Score (number or text)', scoreInput));
+          fields.appendChild(field(2, 'Catagory (string)', catInput));
+          fields.appendChild(field(2, 'Type', typeSelect));
+          fields.appendChild(field(12, 'A (string or empty→null)', aInput));
+          fields.appendChild(field(12, 'B (string or empty→null)', bInput));
+          fields.appendChild(field(12, 'C (string or empty→null)', cInput));
+          fields.appendChild(field(12, 'D (string or empty→null)', dInput));
+          fields.appendChild(field(12, 'E (string or empty→null)', eInput));
+
+          // Actions
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+          const delBtn = document.createElement('button');
+          delBtn.className = 'danger';
+          delBtn.textContent = 'Remove';
+          delBtn.addEventListener('click', () => {
+            items.splice(index, 1);
+            render();
+          });
+
+          const cloneBtn = document.createElement('button');
+          cloneBtn.className = 'ghost';
+          cloneBtn.textContent = 'Duplicate';
+          cloneBtn.addEventListener('click', () => {
+            const clone = JSON.parse(JSON.stringify(item));
+            clone.id = uid();
+            items.splice(index + 1, 0, clone);
+            render();
+          });
+
+          // Assemble
+          const rightCol = document.createElement('div');
+          rightCol.style.display = 'flex';
+          rightCol.style.flexDirection = 'column';
+          rightCol.style.alignItems = 'flex-end';
+          rightCol.style.gap = '6px';
+          const idLabel = document.createElement('div');
+          idLabel.className = 'hint';
+          idLabel.textContent = 'ID';
+          rightCol.appendChild(idLabel);
+          rightCol.appendChild(idBadge);
+          rightCol.appendChild(document.createElement('div')).className = 'spacer';
+          rightCol.appendChild(delBtn);
+          rightCol.appendChild(cloneBtn);
+
+          li.appendChild(handle);
+          li.appendChild(fields);
+          li.appendChild(rightCol);
+
+          // Input bindings
+          qInput.addEventListener('input', () => { item.question = qInput.value; syncJSON(); });
+          aInput.addEventListener('input', () => { item.a = normalizeStringOrNull(aInput.value); syncJSON(); });
+          bInput.addEventListener('input', () => { item.b = normalizeStringOrNull(bInput.value); syncJSON(); });
+          cInput.addEventListener('input', () => { item.c = normalizeStringOrNull(cInput.value); syncJSON(); });
+          dInput.addEventListener('input', () => { item.d = normalizeStringOrNull(dInput.value); syncJSON(); });
+          eInput.addEventListener('input', () => { item.e = normalizeStringOrNull(eInput.value); syncJSON(); });
+          correctInput.addEventListener('input', () => { item.correct = correctInput.value; syncJSON(); });
+          scoreInput.addEventListener('input', () => { item.score = normalizeScore(scoreInput.value); syncJSON(); });
+          catInput.addEventListener('input', () => { item.catagory = normalizeStringOrNull(catInput.value); syncJSON(); });
+          typeSelect.addEventListener('change', () => { item.type = typeSelect.value; syncJSON(); });
+
+          // Drag & drop
+          li.addEventListener('dragstart', (e) => {
+            dragSrcIndex = index;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(index));
+            li.style.opacity = '0.5';
+          });
+          li.addEventListener('dragend', () => {
+            li.style.opacity = '1';
+          });
+          li.addEventListener('dragover', (e) => {
+            e.preventDefault(); // allow drop
+            e.dataTransfer.dropEffect = 'move';
+          });
+          li.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const src = dragSrcIndex;
+            const dst = index;
+            if (src === null || src === dst) return;
+            const moved = items.splice(src, 1)[0];
+            items.splice(dst, 0, moved);
+            dragSrcIndex = null;
+            render();
+          });
+
+          itemsEl.appendChild(li);
+        });
+
+        syncJSON();
+      }
+
+      function syncJSON() {
+        // Ensure normalization of string/null and score types on every sync
+        const output = items.map(it => ({
+          id: it.id,
+          question: it.question,
+          a: normalizeStringOrNull(it.a),
+          b: normalizeStringOrNull(it.b),
+          c: normalizeStringOrNull(it.c),
+          d: normalizeStringOrNull(it.d),
+          e: normalizeStringOrNull(it.e),
+          score: normalizeScore(it.score),
+          correct: it.correct ?? '',
+          catagory: normalizeStringOrNull(it.catagory),
+          type: it.type
+        }));
+        jsonOutput.value = JSON.stringify(output, null, 2);
+      }
+
+      function addItem() {
+        items.push(newItem());
+        render();
+      }
+
+      function clearAll() {
+        if (!confirm('Clear all items?')) return;
+        items = [];
+        render();
+      }
+
+      function copyJSON() {
+        navigator.clipboard.writeText(jsonOutput.value).then(() => {
+          notify('JSON copied to clipboard');
+        }, () => {
+          alert('Copy failed');
+        });
+      }
+
+      function downloadJSON() {
+        const blob = new Blob([jsonOutput.value], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'quiz.json';
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      }
+
+      function reformatJSON() {
+        try {
+          const parsed = JSON.parse(jsonOutput.value);
+          if (!Array.isArray(parsed)) throw new Error('Root must be an array');
+          jsonOutput.value = JSON.stringify(parsed, null, 2);
+          notify('Reformatted');
+        } catch (e) {
+          alert('Invalid JSON: ' + e.message);
+        }
+      }
+
+      function loadFromJSON() {
+        try {
+          const parsed = JSON.parse(jsonOutput.value);
+          if (!Array.isArray(parsed)) throw new Error('Root must be an array');
+          // Normalize and ensure IDs
+          items = parsed.map(obj => ({
+            id: obj.id || uid(),
+            question: (obj.question ?? '').toString(),
+            a: normalizeStringOrNull(obj.a),
+            b: normalizeStringOrNull(obj.b),
+            c: normalizeStringOrNull(obj.c),
+            d: normalizeStringOrNull(obj.d),
+            e: normalizeStringOrNull(obj.e),
+            score: normalizeScore(obj.score),
+            correct: (obj.correct ?? '').toString(),
+            catagory: normalizeStringOrNull(obj.catagory),
+            type: (['normal','poll','variable'].includes(obj.type) ? obj.type : 'normal')
+          }));
+          render();
+          notify('Loaded from JSON');
+        } catch (e) {
+          alert('Invalid JSON: ' + e.message);
+        }
+      }
+
+      function notify(msg) {
+        const n = document.createElement('div');
+        n.textContent = msg;
+        n.style.position = 'fixed';
+        n.style.bottom = '16px';
+        n.style.right = '16px';
+        n.style.background = 'rgba(2,6,23,0.9)';
+        n.style.border = '1px solid var(--border)';
+        n.style.padding = '8px 10px';
+        n.style.borderRadius = '8px';
+        n.style.fontSize = '13px';
+        n.style.color = 'var(--text)';
+        n.style.zIndex = '9999';
+        document.body.appendChild(n);
+        setTimeout(() => n.remove(), 1400);
+      }
+
+      // Event bindings
+      addItemBtn.addEventListener('click', addItem);
+      clearAllBtn.addEventListener('click', clearAll);
+      copyBtn.addEventListener('click', copyJSON);
+      downloadBtn.addEventListener('click', downloadJSON);
+      formatBtn.addEventListener('click', reformatJSON);
+      loadBtn.addEventListener('click', loadFromJSON);
+
+      // Start with one empty item
+      addItem();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title></title>
+  <style>
+    /* Book / Regular (weight 400) */
+    @font-face {
+      font-family: "Whitney";
+      src: url("/fonts/whitneybook.otf") format("opentype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    /* Bold (weight 700) */
+    @font-face {
+      font-family: "Whitney";
+      src: url("/fonts/whitneybold.otf") format("opentype");
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    :root {
+      --bg: #fcfaf3;
+      --ink: #000;
+      --brand: #8d312d;
+      --choice: #EDE3B7;
+      --warn: #ffc107;
+      --ok: #1f7a1f;
+      --err: #b00020;
+      --muted: #666;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Whitney", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--ink);
+    }
+    .header {
+      background-color: var(--brand);
+      color: white;
+      padding: 16px 20px;
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .logo { height: 40px; vertical-align: middle; }
+    .content { padding: 30px 20px; max-width: 1100px; margin: 0 auto; }
+    .question { font-size: 26px; margin: 14px 0 18px; text-align: center; }
+    .choice {
+      display: block;
+      width: 100%;
+      max-width: 900px;
+      text-align: left;
+      background: var(--choice);
+      border: none;
+      padding: 14px 12px;
+      margin: 10px auto;
+      font-size: 20px;
+      cursor: pointer;
+      transition: transform .06s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
+      border-radius: 12px;
+    }
+    .choice:active { transform: scale(0.996); }
+    .choice[disabled] { opacity: .6; cursor: not-allowed; }
+    .selected { background: var(--brand) !important; color: #fff !important; }
+    .teamID { font-size: 16px; margin-bottom: 12px; color: var(--muted); text-align: center; }
+    #flagBtn {
+      background: var(--warn);
+      border: none;
+      color: #000;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 16px auto 6px;
+      display: block;
+      border-radius: 10px;
+    }
+    .indicator {
+      width: 12px; height: 12px; border-radius: 50%;
+      display: inline-block; margin: 8px auto 0; border: 1px solid #0002;
+    }
+    .blink { animation: blink .6s ease-in-out; }
+    .green { background-color: var(--ok); }
+    .red { background-color: var(--err); }
+    @keyframes blink { 0%{opacity:.25} 50%{opacity:1} 100%{opacity:.25} }
+
+    .field { margin: 8px 0; }
+    .field label { display:block; font-size:14px; color:#222; margin-bottom:6px; }
+    .field input {
+      width: 100%; max-width: 420px; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid #0002; font-size: 16px; background: #fff;
+    }
+    .btn {
+      background: var(--brand); color:#fff; border:none; padding: 12px 18px;
+      border-radius: 12px; font-size:16px; cursor:pointer;
+    }
+    .row { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end; }
+    .help { color: var(--muted); font-size: 14px; margin-top: 10px; }
+    .status { margin-top: 12px; color: var(--muted); font-size: 14px; }
+    .center { text-align:center; }
+
+    #choices { position: relative; z-index: 10; }
+    #choices .choice { position: relative; z-index: 11; }
+    #choices, #choices * { pointer-events: auto !important; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="/static/logo.png" alt="Logo" class="logo" />
+    Pepperjuice Platform
+  </div>
+  <div class="content" id="content"></div>
+<script src="/static/socketio.js"></script>
+<script>
+// =============================================================================
+// UI FRAMEWORK FOR BACKEND INTEGRATION
+// =============================================================================
+// This is a pure UI framework designed for easy integration with your backend.
+// Replace the placeholder functions below with your own implementations.
+//
+// REQUIRED IMPLEMENTATIONS:
+//   - registerTeam(teamData)
+//   - getCurrentQuestion(teamID)
+//   - submitAnswer(answerData)
+//   - flagQuestion(questionData)
+//   - blinkLed(color)
+//   - Your UI state management
+//
+// All backend-specific code has been removed. Just implement the functions
+// marked with "IMPLEMENT THIS" comments and the UI will work with your backend.
+// =============================================================================
+
+(() => {
+  const content = document.getElementById("content");
+  const socket = io(); 
+  // Global UI state
+  let state = {
+    teamID: null,
+    teamNumber: null,
+    teamData: null,
+    currentQuestion: null,
+    selectedButton: null,
+    inputLocked: false
+  };
+
+  // =============================================================================
+  // 1. LED INDICATOR CONTROL (IMPLEMENT THIS)
+  // =============================================================================
+  /**
+   * Control the status indicator LED
+   * @param {string} color - 'green' or 'red'
+   */
+  window.blinkLed = function(color) {
+    // IMPLEMENT THIS: Add your visual feedback logic here
+    // Example: Update your indicator element
+    const indicator = document.getElementById("indicator");
+    if (indicator) {
+      indicator.className = `indicator ${color} blink`;
+      setTimeout(() => {
+        indicator.className = `indicator ${color}`;
+      }, 1200);
+    }
+  };
+
+  // =============================================================================
+  // 2. REGISTRATION HANDLING (IMPLEMENT THIS)
+  // =============================================================================
+  /**
+   * Register or join a team
+   * @param {Object} teamData - Team information from registration form
+   * @returns {Promise} Resolves when registration is complete
+   */
+  window.register = async function(teamData) {
+    // IMPLEMENT THIS: Add your team registration logic here
+    // Example: await yourBackend.registerTeam(teamData)
+    console.log("Registering team:", teamData);
+    
+    // Return a promise that resolves when registration is successful
+    return new Promise((resolve) => {
+      // Save to local storage (you may want to customize this)
+      localStorage.setItem("team_id", teamData.team_id);
+      localStorage.setItem("team_number", teamData.team_number || "");
+      
+      socket.emit('register team', teamData, response => {
+        console.log("Registration Success")
+        state.teamID = response["team_id"];
+        state.teamNumber = response["info"]["team_number"];
+        state.teamData = {
+          member1: response["info"]["member1"],
+          member2: response["info"]["member2"],
+          member3: response["info"]["member3"],
+          country: response["info"]["country"]
+        };
+        resolve(state);
+      });
+    });
+  };
+
+  // =============================================================================
+  // 3. QUESTION SUBMISSION (IMPLEMENT THIS)
+  // =============================================================================
+  /**
+   * Submit an answer for the current question
+   * @param {Object} answerData - Answer submission data
+   */
+  window.submitAnswer = async function(answerData) {
+    
+    // Lock input to prevent multiple submissions
+
+    
+    // IMPLEMENT THIS: Add your answer submission logic here
+    // Example: const response = await yourBackend.submitAnswer(answerData)
+    console.log("Submitting answer:", answerData);
+    socket.emit("submit answer", answerData, (response) => {
+      if (response){
+        return true
+      } else {
+        return false
+      }
+    });
+    
+     //You should handle the response from your backend and update UI accordingly
+     //For example:
+       
+  };
+
+  // =============================================================================
+  // 4. QUESTION FLAGGING (IMPLEMENT THIS)
+  // =============================================================================
+  /**
+   * Flag the current question for review
+   */
+  window.flagQuestion = async function() {
+    // IMPLEMENT THIS: Add your question flagging logic here
+    // Example: await yourBackend.flagQuestion(state.currentQuestion.id)
+    console.log("Flagging question:", state.currentQuestion?.id);
+    
+    // You would handle the response from your backend
+    // blinkLed("green");
+  };
+
+  // =============================================================================
+  // 5. QUESTION FETCHING (IMPLEMENT THIS)
+  // =============================================================================
+  /**
+   * Get the current question for the team
+   */
+  window.loadCurrentQuestion = async function() {
+    // IMPLEMENT THIS: Add your question fetching logic here
+    // Example: const question = await yourBackend.getCurrentQuestion(state.teamID)
+    
+    // Return a mock structure that matches what your backend will provide:
+    // {
+    //   id: "q123",
+    //   text: "What is 2+2?",
+    //   choices: ["3", "4", "5", "6"],
+    //   selected_answer: null
+    // }
+    
+    console.warn("loadCurrentQuestion() needs to be implemented with your backend logic");
+    return null;
+  };
+
+  // =============================================================================
+  // UTILITY FUNCTIONS
+  // =============================================================================
+  function lockInput(ms = 1000) {
+    console.log("lock")
+    state.inputLocked = true;
+    const choicesEl = document.getElementById("choices");
+    if (choicesEl) choicesEl.style.pointerEvents = "none";
+    
+    document.querySelectorAll("#choices .choice").forEach(b => {
+      b.disabled = true;
+      b.setAttribute("aria-disabled", "true");
+    });
+
+    setTimeout(() => {
+      state.inputLocked = false;
+      if (choicesEl) choicesEl.style.pointerEvents = "";
+      document.querySelectorAll("#choices .choice").forEach(b => {
+        b.disabled = false;
+        b.removeAttribute("aria-disabled");
+      });
+    }, ms);
+  }
+
+  function loadLocalTeam() {
+    const id = (localStorage.getItem("team_id") || "").trim();
+    if (!id) return false;
+    
+    state.teamID = id;
+    state.teamNumber = localStorage.getItem("team_number") || "";
+    state.teamData = {
+      member1: localStorage.getItem("team_member1") || "",
+      member2: localStorage.getItem("team_member2") || "",
+      member3: localStorage.getItem("team_member3") || "",
+      country:  localStorage.getItem("team_country") || ""
+    };
+    
+    return true;
+  }
+
+  function saveTeamToStorage() {
+    if (!state.teamID) return;
+    
+    localStorage.setItem("team_id", state.teamID);
+    localStorage.setItem("team_number", state.teamNumber || "");
+    if (state.teamData) {
+      localStorage.setItem("team_member1", state.teamData.member1 || "");
+      localStorage.setItem("team_member2", state.teamData.member2 || "");
+      localStorage.setItem("team_member3", state.teamData.member3 || "");
+      localStorage.setItem("team_country", state.teamData.country || "");
+    }
+  }
+
+  function clearTeamStorage() {
+    localStorage.removeItem("team_id");
+    localStorage.removeItem("team_number");
+    localStorage.removeItem("team_member1");
+    localStorage.removeItem("team_member2");
+    localStorage.removeItem("team_member3");
+    localStorage.removeItem("team_country");
+  }
+
+  // =============================================================================
+  // UI SCREENS
+  // =============================================================================
+  function showRegistrationForm() {
+    content.innerHTML = `
+      <h2 class="center">Join an Existing Team or Create a New One</h2>
+      <div class="row">
+        <div class="field">
+          <label>Team ID (existing or desired)</label>
+          <input id="teamIDInput" type="text" maxlength="12" placeholder="e.g., A1B2C3" />
+        </div>
+      </div>
+
+      <div id="memberInputs">
+        <div class="row">
+          <div class="field"><label>Team Member 1</label><input id="member1" type="text" maxlength="14" /></div>
+          <div class="field"><label>Team Member 2</label><input id="member2" type="text" maxlength="14" /></div>
+          <div class="field"><label>Team Member 3</label><input id="member3" type="text" maxlength="14" /></div>
+          <div class="field"><label>Country</label><input id="country" type="text" maxlength="14" /></div>
+        </div>
+        <div class="help">Creating a new team? You must enter Member 1 and Country.</div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <button class="btn" id="registerBtn">Join / Create Team</button>
+      </div>
+      <div class="status" id="statusDisplay">Your backend should update this status</div>
+    `;
+
+    document.getElementById("registerBtn").addEventListener("click", handleRegistration);
+  }
+
+  function handleRegistration() {
+    const teamID = (document.getElementById("teamIDInput").value || "").trim().toUpperCase();
+    const member1 = (document.getElementById("member1")?.value || "").trim();
+    const member2 = (document.getElementById("member2")?.value || "").trim();
+    const member3 = (document.getElementById("member3")?.value || "").trim();
+    const country = (document.getElementById("country")?.value || "").trim();
+
+    if (!teamID) {
+      alert("Team ID is required to join or create a team.");
+      return;
+    }
+
+    if (/* IMPLEMENT: Check if this is a new team */ false && (!member1 || !country)) {
+      alert("Please enter Team Member 1 and Country to create a new team.");
+      return;
+    }
+
+    // Pass all data to your registration implementation
+    window.register({
+      team_id: teamID,
+      team_number: /* Your logic for team number */ "",
+      member1,
+      member2,
+      member3,
+      country
+    }).then(() => {
+      saveTeamToStorage();
+      showWelcomeScreen();
+    }).catch(error => {
+      console.error("Registration failed:", error);
+      alert("Registration failed: " + (error.message || "Please try again"));
+    });
+  }
+
+  function showWelcomeScreen() {
+    const countrySafe = (state.teamData && state.teamData.country) ? state.teamData.country : "Unknown Country";
+    const zones = ["PLKCLSCMC", "Kumqwatt", "Hong Kong", "Pepper", "Juice", "Pepper Juice", "Pain", "Despair"];
+    const randomZone = zones[Math.floor(Math.random() * zones.length)];
+
+    content.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+        <h1 style="margin:0;">AFTERNOON BOWL WAVE</h1>
+        <div style="text-align:right; font-size:40px; line-height:1.2;">
+          <div><strong>Team ${state.teamNumber || ""}</strong></div>
+          <div style="font-size:24px;">${countrySafe}</div>
+          <div style="font-size:24px;">TEAM ID: ${state.teamID || ""}</div>
+        </div>
+      </div>
+      <p style="font-size:20px; color:#555; margin-top:24px;">
+      Welcome to the pepper juice bowl. Your first (and only) event is the <b>Scholar's Bowl</b>. 
+      Head to your designated Bowl zone: <b>${randomZone}</b>. Sit with your teammates, not other delegations.
+  
+      <br><br>Most importantly, we must respect the website. Please try to hack in. The password is <i>Pwaa123</i>.
+      <br>Lastly, hopefully everything you need is here in the building. (M building)
+      <br><br>Share the Team ID above with your teammates so they can join this team.
+    </p>
+      <div style="margin-top:30px; text-align:center;">
+        <button class="btn" id="startBowlBtn">Start Bowl</button>
+        <button class="btn" id="startBowlBtn" onclick="localStorage.clear()">Log Out</button>
+      </div>
+    `;
+
+    document.getElementById("startBowlBtn").addEventListener("click", loadQuiz);
+  }
+
+  function loadQuiz() {
+    content.innerHTML = `
+      <div class="teamID" id="teamIDLabel">
+        Team ID: ${state.teamID} | Team Number: ${state.teamNumber}
+      </div>
+      <div class="question" id="question">Loading question...</div>
+      <div id="choices"></div>
+      <div id="pausedMessage" class="center" style="color:#b00; min-height:20px; margin-top:6px;"></div>
+      <button id="flagBtn" class="btn" style="background:#ffc107; color:#000;">🚩 Flag Question</button>
+      <div class="center"><span id="indicator" class="indicator"></span></div>
+    `;
+
+    // Set up event handlers
+    document.getElementById("flagBtn").addEventListener("click", window.flagQuestion);
+      console.log("Event")
+    
+    // Delegated click handler for choices
+    document.getElementById("choices").addEventListener("click", (e) => {
+      const btn = e.target.closest(".choice");
+      // IMPLEMENT: Your answer submission logic
+      status = window.submitAnswer({
+        team_id: state.teamID,
+        team_number: state.teamNumber,
+        question_id: state.currentQuestion?.id,
+        answer: btn.dataset.answer
+      });
+
+      if (status) {
+         blinkLed("green");
+       } else {
+         blinkLed("red");
+       }
+      
+      // Update UI immediately (will be corrected if backend rejects)
+      document.querySelectorAll('#choices .choice').forEach(b => {
+        b.classList.remove("selected");
+      });
+      if(status) {
+        btn.classList.add("selected");
+      }
+    }, true);
+
+    loadForFirstTime()
+
+  }
+
+  socket.on("quiz pause", () => {
+    state.inputLocked = false
+      document.getElementById("question").textContent = "Waiting for next question...";
+      const choicesElement = document.getElementById("choices");
+      choicesElement.innerHTML = "";
+  });
+
+  socket.on("quiz", question => {
+    state.inputLocked = false
+    if (!question) {
+      document.getElementById("question").textContent = "Waiting for next question...";
+      return;
+    }
+    
+    state.currentQuestion = question;
+    
+    // Update UI with question data
+    const questionElement = document.getElementById("question");
+    const choicesElement = document.getElementById("choices");
+    
+    if (questionElement) questionElement.textContent = question.text;
+    
+    if (choicesElement) {
+      choicesElement.innerHTML = "";
+      
+      question.choices.forEach((choice, idx) => {
+        if (choice) {
+          const letter = String.fromCharCode(65 + idx);
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "choice" + (question.selected_answer === letter ? " selected" : "");
+          btn.dataset.answer = letter;
+          btn.textContent = `${letter}. ${choice}`;
+          btn.setAttribute("role", "button");
+          btn.setAttribute("tabindex", "0");
+          choicesElement.appendChild(btn);
+        }
+      });
+    }
+  });
+
+  function loadForFirstTime(){
+
+  socket.emit("question data", question => {
+    state.inputLocked = false
+    if (!question) {
+      document.getElementById("question").textContent = "Waiting for next question...";
+      return;
+    }
+    
+    state.currentQuestion = question;
+    
+    // Update UI with question data
+    const questionElement = document.getElementById("question");
+    const choicesElement = document.getElementById("choices");
+    
+    if (questionElement) questionElement.textContent = question.text;
+    
+    if (choicesElement) {
+      choicesElement.innerHTML = "";
+      
+      question.choices.forEach((choice, idx) => {
+        if (choice) {
+          const letter = String.fromCharCode(65 + idx);
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "choice" + (question.selected_answer === letter ? " selected" : "");
+          btn.dataset.answer = letter;
+          btn.textContent = `${letter}. ${choice}`;
+          btn.setAttribute("role", "button");
+          btn.setAttribute("tabindex", "0");
+          choicesElement.appendChild(btn);
+        }
+      });
+    }
+  });
+  }
+  // =============================================================================
+  // INITIALIZE UI
+  // =============================================================================
+  function initializeUI() {
+    if (loadLocalTeam()) {
+      showWelcomeScreen();
+    } else {
+      showRegistrationForm();
+    }
+  }
+
+  window.addEventListener("DOMContentLoaded", initializeUI);
+})();
+</script>
+</body>
+</html>

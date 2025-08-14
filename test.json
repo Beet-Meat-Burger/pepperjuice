@@ -1,0 +1,67 @@
+[
+  {
+    "id": "18f070c0-7e25-4652-b639-4a688b3dff70",
+    "question": "What is the capital of Australia?",
+    "a": "Sydney",
+    "b": "Melbourne",
+    "c": "Canberra",
+    "d": "Perth",
+    "e": null,
+    "score": 10,
+    "correct": "c",
+    "category": "Geography",
+    "type": "normal"
+  },
+  {
+    "id": "a3b8c9d1-2e45-4f6a-8b2c-1d0e9f7a6b5c",
+    "question": "Which planet is known as the Red Planet?",
+    "a": "Venus",
+    "b": "Jupiter",
+    "c": "Mars",
+    "d": "Saturn",
+    "e": null,
+    "score": 10,
+    "correct": "C",
+    "category": "Astronomy",
+    "type": "normal"
+  },
+  {
+    "id": "f0e1d2c3-b4a5-4678-90c1-d2e3f4a5b6c7",
+    "question": "What is the largest ocean on Earth?",
+    "a": "Atlantic Ocean",
+    "b": "Indian Ocean",
+    "c": "Arctic Ocean",
+    "d": "Pacific Ocean",
+    "e": null,
+    "score": 10,
+    "correct": "C",
+    "category": "Geography",
+    "type": "normal"
+  },
+  {
+    "id": "98765432-10fe-4dcba-9876-543210fedcba",
+    "question": "Who wrote 'Romeo and Juliet'?",
+    "a": "Charles Dickens",
+    "b": "Jane Austen",
+    "c": "William Shakespeare",
+    "d": "Mark Twain",
+    "e": null,
+    "score": 10,
+    "correct": "C",
+    "category": "Literature",
+    "type": "normal"
+  },
+  {
+    "id": "abcdef12-3456-7890-abcd-ef1234567890",
+    "question": "In computing, what does 'CPU' stand for?",
+    "a": "Central Processing Unit",
+    "b": "Computer Personal Unit",
+    "c": "Central Process Unit",
+    "d": "Core Processing Unit",
+    "e": null,
+    "score": 10,
+    "correct": "A",
+    "category": "Technology",
+    "type": "normal"
+  }
+]
