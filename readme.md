@@ -13,7 +13,6 @@ The World Scholar's Cup is a prestigious international academic competition wher
 - **Real-time Competition** - Practice the pressure and pace of actual bowls
 - **Team-based Scoring** - Three-person team registration and scoring
 - **Country Representation** - Teams register with their country like in WSC
-- **Instant Feedback** - Know immediately if your answers are correct
 
 ### 👨‍🏫 **For Coaches & Organizers** 
 - **Bowl Control Panel** - Manage practice sessions like official WSC bowls
@@ -35,5 +34,4 @@ The World Scholar's Cup is a prestigious international academic competition wher
 - **Database**: PocketBase Cloud
 - **Frontend**: HTML5, CSS3, Vanilla JavaScript
 - **Real-time Communication**: Socket.IO
-- **Fonts**: Whitney (matching WSC's clean, academic aesthetic)
 - **Deployment**: Flask development server
