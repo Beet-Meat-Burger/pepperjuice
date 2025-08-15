@@ -2,3 +2,4 @@ Flask
 flask-socketio
 pocketbase
 eventlet
+python-dotenv
