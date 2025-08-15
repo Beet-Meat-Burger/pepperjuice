@@ -5,6 +5,10 @@ from flask_socketio import SocketIO, emit
 import random
 from pocketbase import PocketBase  # Client also works the same
 import os
+from dotenv import load_dotenv
+
+print(load_dotenv("environment.env", verbose=True, override=True))
+
 
 client = PocketBase('https://67e2174q4tpcvud.pocketbasecloud.com/')
 user_data = client.collection("users").auth_with_password(os.environ.get('PB_EMAIL'), os.environ.get('PB_PASS'))
@@ -118,7 +122,7 @@ def submit(json):
         
         if not all([question_id, team_id, new_answer]):
             print("Missing required fields")
-            return False
+            return {"status":False}
         
         current_question = bowlJson[currentQuestionIndex]
         correct_answer = current_question.get("correct")
@@ -126,19 +130,19 @@ def submit(json):
         # CASE-INSENSITIVE comparison function
         def answers_match(submitted, correct):
             if submitted is None or correct is None:
-                return False
+                return {"status":False}
             return str(submitted).strip().upper() == str(correct).strip().upper()
         
         # Validate question ID and accepting responses
         if question_id != current_question.get("id") or not acceptingResponses:
             print(f"Invalid submission - ID mismatch or not accepting responses")
-            return False
+            return {"status":False}
         
         # Get team
         team = users.get(team_id)
         if not team:
             print(f"Team {team_id} not found")
-            return False
+            return {"status":"Team Not Found"}
         
         # Ensure questions structure exists
         if "questions" not in team or not isinstance(team["questions"], dict):
@@ -252,13 +256,13 @@ def submit(json):
         print(f"Total Questions: {len(team['questions'])}")
         print("=== END STATS ===")
         
-        return True
+        return {"status":True}
         
     except Exception as e:
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return {"status":False}
 
 # ============= HELPER FUNCTION FOR GETTING TEAM STATS =============
 def get_team_stats(team_id):
@@ -288,6 +292,12 @@ def teamsData(json):
     if json.get("admin_code") == adminCode:
         return users
 
+@socketio.on("admin clear teams")
+def clearTeamsData(json):
+    global users
+    if json.get("admin_code") == adminCode:
+        users = {}
+
 @socketio.on("admin question data")
 def questionData(json):
     global acceptingResponses
@@ -302,6 +312,7 @@ def questionData(json):
             "number_of_flags": 0,
             "count": bowlJson.__len__(),
             "index": currentQuestionIndex,
+            "open": acceptingResponses
         }
         return question
 

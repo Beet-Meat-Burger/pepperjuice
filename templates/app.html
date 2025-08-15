@@ -186,9 +186,6 @@
     // Return a promise that resolves when registration is successful
     return new Promise((resolve) => {
       // Save to local storage (you may want to customize this)
-      localStorage.setItem("team_id", teamData.team_id);
-      localStorage.setItem("team_number", teamData.team_number || "");
-      
       socket.emit('register team', teamData, response => {
         console.log("Registration Success")
         state.teamID = response["team_id"];
@@ -199,6 +196,8 @@
           member3: response["info"]["member3"],
           country: response["info"]["country"]
         };
+        localStorage.setItem("team_id", teamData.team_id);
+        localStorage.setItem("team_number", teamData.team_number || "");
         resolve(state);
       });
     });
@@ -220,11 +219,17 @@
     // Example: const response = await yourBackend.submitAnswer(answerData)
     console.log("Submitting answer:", answerData);
     socket.emit("submit answer", answerData, (response) => {
-      if (response){
-        return true
-      } else {
-        return false
+      console.log(response)
+      if (response["status"] == "Team Not Found"){
+        localStorage.clear()
+        location.reload();
       }
+      if (response["status"] == true){
+        blinkLed("green")
+      } else {
+        blinkLed("red")
+      }
+        
     });
     
      //You should handle the response from your backend and update UI accordingly
@@ -357,7 +362,7 @@
       <div style="margin-top:16px;">
         <button class="btn" id="registerBtn">Join / Create Team</button>
       </div>
-      <div class="status" id="statusDisplay">Your backend should update this status</div>
+      <div class="status" id="statusDisplay">All is well.</div>
     `;
 
     document.getElementById("registerBtn").addEventListener("click", handleRegistration);
@@ -397,6 +402,22 @@
     });
   }
 
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      blinkLed('red');
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('Disconnected:', reason);
+      blinkLed('red');
+    });
+
+    socket.on('error', (error) => {
+      console.error('Socket error:', error);
+      blinkLed('red');
+    });
+
+
   function showWelcomeScreen() {
     const countrySafe = (state.teamData && state.teamData.country) ? state.teamData.country : "Unknown Country";
     const zones = ["PLKCLSCMC", "Kumqwatt", "Hong Kong", "Pepper", "Juice", "Pepper Juice", "Pain", "Despair"];
@@ -421,7 +442,7 @@
     </p>
       <div style="margin-top:30px; text-align:center;">
         <button class="btn" id="startBowlBtn">Start Bowl</button>
-        <button class="btn" id="startBowlBtn" onclick="localStorage.clear()">Log Out</button>
+        <button class="btn" id="startBowlBtn" onclick="localStorage.clear(); location.reload();">Log Out</button>
       </div>
     `;
 

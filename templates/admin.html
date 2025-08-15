@@ -559,6 +559,7 @@ if (!localStorage.getItem("code")) {
   const sidebar = document.getElementById("sidebar");
   const content = document.getElementById("content");
   const socket = io(); 
+  window.socket = socket
 
   // Global state management
   let state = {
@@ -598,7 +599,7 @@ if (!localStorage.getItem("code")) {
     });
    }
    refreshTeamsData()
-
+   window.refreshTeamsData = refreshTeamsData; 
   // =============================================================================
   // DATA PROCESSING FUNCTIONS
   // =============================================================================
@@ -699,6 +700,9 @@ if (!localStorage.getItem("code")) {
   // =============================================================================
   function navigateTo(view) {
     state.currentView = view;
+    if (view == "teams") {
+      refreshTeamsData()
+    }
     renderSidebar();
     renderView();
   }
@@ -795,14 +799,17 @@ if (!localStorage.getItem("code")) {
 
     // Helper function to process the admin question data response
     function updateQuestionData(adminData) {
-        state.currentQuestion = {
+      state.currentQuestion = {
         id: adminData.id,
         text: adminData.text || adminData.question,
         choices: adminData.choices || [adminData.a, adminData.b, adminData.c, adminData.d, adminData.e].filter(c => c),
         correct_answer: adminData.correct_answer,
         number_of_flags: adminData.number_of_flags || 0
-        };
+      };
+      // CRITICAL FIX: Use the 'open' boolean to set pause state
+      state.isPaused = !adminData.open; 
     }
+
 
     // Socket event listeners
     socket.on('quiz', (questionData) => {
@@ -810,7 +817,6 @@ if (!localStorage.getItem("code")) {
         socket.emit('admin question data', { admin_code: state.adminCode }, (response) => {
         if (response) {
             updateQuestionData(response);
-            state.isPaused = false;
             updateQuizUI();
         }
         });
@@ -987,7 +993,7 @@ if (!localStorage.getItem("code")) {
       <div class="page-header">
         <h1 class="page-title">Team Results</h1>
         <div style="display: flex; gap: 10px;">
-          <button class="btn" onclick="socket.emit('admin teams data', { admin_code: '${state.adminCode}' })">
+          <button class="btn" onclick="refreshTeamsData()">
             🔄 Refresh Data
           </button>
           <button class="btn btn-secondary" onclick="exportToCSV()">
@@ -1128,6 +1134,7 @@ if (!localStorage.getItem("code")) {
       <div class="form-group">
         <input type="file" id="jsonFile" style="display: none" name="Bowl File" accept="application/json" />
         <button class="btn" onclick="uploadJSON()">Upload</button>
+        <button class="btn" onclick="socket.emit('admin clear teams', {'admin_code': '${state.adminCode}'})">Clear User Data</button>
       </div>
     `;
   }
@@ -1146,7 +1153,7 @@ if (!localStorage.getItem("code")) {
       <div class="page-header">
         <h1 class="page-title">System Settings</h1>
       </div>
-      <p class="center" style="color: var(--muted);"><button class="btn" onclick="localStorage.clear();">Log Out</button></p>
+      <p class="center" style="color: var(--muted);"><button class="btn" onclick="localStorage.clear(); location.reload();">Log Out</button></p>
     `;
   }
 
@@ -1156,8 +1163,6 @@ if (!localStorage.getItem("code")) {
   function initializeUI() {
     renderSidebar();
     renderView();
-    
-    
   }
 
   window.addEventListener("DOMContentLoaded", initializeUI);
