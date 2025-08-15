@@ -347,6 +347,7 @@ def register(json):
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    global bowlJson
     if request.method == 'POST':
         data = request.get_json(silent=True)
         if data:
@@ -356,10 +357,11 @@ def upload():
                     "field": data,
                 }
             )
-            getBowlJson()
+            bowlJson = getBowlJson()
             return "ok"
     return "no"
 
 
 if __name__ == '__main__':
+
     socketio.run(app, host="0.0.0.0", port=os.environ.get('PORT', 10000), debug=True)
