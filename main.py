@@ -113,7 +113,7 @@ def submit(json):
     global acceptingResponses
     
     try:
-        print("Answer submission:", json)
+        #print("Answer submission:", json)
         
         # Validate required fields
         question_id = json.get("question_id")
@@ -121,7 +121,7 @@ def submit(json):
         new_answer = json.get("answer")
         
         if not all([question_id, team_id, new_answer]):
-            print("Missing required fields")
+            #print("Missing required fields")
             return {"status":False}
         
         current_question = bowlJson[currentQuestionIndex]
@@ -135,13 +135,13 @@ def submit(json):
         
         # Validate question ID and accepting responses
         if question_id != current_question.get("id") or not acceptingResponses:
-            print(f"Invalid submission - ID mismatch or not accepting responses")
+            #print(f"Invalid submission - ID mismatch or not accepting responses")
             return {"status":False}
         
         # Get team
         team = users.get(team_id)
         if not team:
-            print(f"Team {team_id} not found")
+            #print(f"Team {team_id} not found")
             return {"status":"Team Not Found"}
         
         # Ensure questions structure exists
@@ -153,13 +153,13 @@ def submit(json):
         if currentQuestionIndex in team["questions"]:
             prev_data = team["questions"][currentQuestionIndex]
             if isinstance(prev_data, dict):
-                previous_answer = prev_data.get("answer")
+                previous_answer = prev_data.get("answer")  # or prev_data.get("selected_choice")
             else:
                 previous_answer = prev_data
         
         # Check if answer is correct
         is_correct = answers_match(new_answer, correct_answer)
-        print(f"Answer '{new_answer}' vs '{correct_answer}' → {'CORRECT' if is_correct else 'INCORRECT'}")
+        #print(f"Answer '{new_answer}' vs '{correct_answer}' → {'CORRECT' if is_correct else 'INCORRECT'}")
         
         # Calculate score changes
         question_points = current_question.get("score", 1)
@@ -169,23 +169,24 @@ def submit(json):
             
             if was_correct and not is_correct:
                 team["score"] = max(0, team["score"] - question_points)
-                print(f"Score decreased by {question_points}")
+                #print(f"Score decreased by {question_points}")
             elif not was_correct and is_correct:
                 team["score"] = team["score"] + question_points
-                print(f"Score increased by {question_points}")
+                #print(f"Score increased by {question_points}")
         else:
             # First attempt
             if is_correct:
                 team["score"] = team["score"] + question_points
-                print(f"Score increased by {question_points} (first correct)")
+                #print(f"Score increased by {question_points} (first correct)")
         
-        # Store the answer with timestamp for ordering
+        # *** UPDATED: Store the answer with selected_choice field ***
         team["questions"][currentQuestionIndex] = {
-            "answer": new_answer,
+            "answer": new_answer,  # Keep this for backwards compatibility
+            "selected_choice": new_answer.strip().upper(),  # Add this for frontend
             "question_id": question_id,
             "is_correct": is_correct,
             "timestamp": time.time(),
-            "question_index": currentQuestionIndex  # For ordering
+            "question_index": currentQuestionIndex
         }
         
         # ============= CALCULATE ACCURACY =============
@@ -248,13 +249,14 @@ def submit(json):
         team["highstreak"] = max(team.get("highstreak", 0), high_streak)
         
         # ============= LOGGING =============
-        print(f"=== TEAM STATS UPDATE ===")
-        print(f"Score: {team['score']}")
-        print(f"Accuracy: {team['accuracy']}%")
-        print(f"Current Streak: {team['streak']}")
-        print(f"High Streak: {team['highstreak']}")
-        print(f"Total Questions: {len(team['questions'])}")
-        print("=== END STATS ===")
+        #print(f"=== TEAM STATS UPDATE ===")
+        #print(f"Score: {team['score']}")
+        #print(f"Accuracy: {team['accuracy']}%")
+        #print(f"Current Streak: {team['streak']}")
+        #print(f"High Streak: {team['highstreak']}")
+        #print(f"Total Questions: {len(team['questions'])}")
+        #print(f"Selected Choice: {new_answer.strip().upper()}")
+        #print("=== END STATS ===")
         
         return {"status":True}
         
@@ -316,6 +318,28 @@ def questionData(json):
         }
         return question
 
+@socketio.on("jump to question")
+def jump_to_question(json):
+    global currentQuestionIndex
+    global acceptingResponses
+    
+    if json.get("admin_code") == adminCode:
+        question_index = json.get("question_index")
+        
+        # Validate question index
+        if question_index is not None and 0 <= question_index < len(bowlJson):
+            currentQuestionIndex = question_index
+            print(f"Jumped to question index: {currentQuestionIndex}")
+            
+            # If quiz was active, resume with new question
+            if acceptingResponses:
+                resume({"admin_code": adminCode})
+            
+            return {"status": True, "current_index": currentQuestionIndex}
+        else:
+            return {"status": False, "error": "Invalid question index"}
+    
+    return {"status": False, "error": "Unauthorized"}
 
 @socketio.on("register team")
 def register(json):
@@ -347,7 +371,6 @@ def register(json):
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    global bowlJson
     if request.method == 'POST':
         data = request.get_json(silent=True)
         if data:
@@ -357,11 +380,10 @@ def upload():
                     "field": data,
                 }
             )
-            bowlJson = getBowlJson()
+            getBowlJson()
             return "ok"
     return "no"
 
 
 if __name__ == '__main__':
-
-    socketio.run(app, host="0.0.0.0", port=os.environ.get('PORT', 10000), debug=True)
+    socketio.run(app, host="0.0.0.0", port=os.environ.get('PORT', 10000), debug=False)

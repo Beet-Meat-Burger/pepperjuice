@@ -427,8 +427,14 @@
       width: 25px;
       height: 25px;
       border-radius: 4px;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       margin: 2px;
+      font-weight: bold;
+      font-size: 10px;
+      color: white;
+      text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
     }
     
     .matrix-cell.correct {
@@ -441,6 +447,8 @@
     
     .matrix-cell.unanswered {
       background: #ddd;
+      color: #666;
+      text-shadow: none;
     }
     
     .btn-secondary {
@@ -657,9 +665,9 @@ if (!localStorage.getItem("code")) {
     
     let csv = 'Team ID,Team Number,Score,Accuracy,Current Streak,High Streak';
     
-    // Add question headers
+    // Add question headers with choice and correctness columns
     matrixData.questionNumbers.forEach(qNum => {
-      csv += `,Q${qNum}`;
+      csv += `,Q${qNum + 1} Choice,Q${qNum + 1} Correct`;
     });
     csv += '\n';
     
@@ -670,15 +678,25 @@ if (!localStorage.getItem("code")) {
       
       matrixData.questionNumbers.forEach(qNum => {
         const questionData = team.questions[qNum];
-        let status = 'unanswered';
+        let choice = '';
+        let isCorrect = '';
+        
         if (questionData) {
           if (typeof questionData === 'object') {
-            status = questionData.is_correct ? 'correct' : 'incorrect';
+            // New format with selected_choice and is_correct
+            choice = questionData.selected_choice ? questionData.selected_choice.toUpperCase() : '';
+            isCorrect = questionData.is_correct ? 'Yes' : 'No';
           } else {
-            status = 'answered'; // Legacy format
+            // Legacy format handling
+            choice = 'Answered';
+            isCorrect = '';
           }
+        } else {
+          choice = '';
+          isCorrect = '';
         }
-        csv += `,${status}`;
+        
+        csv += `,"${choice}","${isCorrect}"`;
       });
       csv += '\n';
     });
@@ -956,7 +974,7 @@ if (!localStorage.getItem("code")) {
   }
 
   // =============================================================================
-  // TEAM RESULTS VIEW WITH COMPREHENSIVE DATA VISUALIZATION
+  // TEAM RESULTS VIEW WITH COMPREHENSIVE DATA VISUALIZATION INCLUDING CHOICES
   // =============================================================================
   function showTeamResults() {
     const teams = getTeamsArray();
@@ -1027,17 +1045,17 @@ if (!localStorage.getItem("code")) {
       <!-- Matrix View -->
       <div class="matrix-container">
         <div class="matrix-controls">
-          <h2 style="margin: 0; color: var(--brand);">📊 Question Matrix</h2>
+          <h2 style="margin: 0; color: var(--brand);">📊 Question Matrix with Choices</h2>
           <div style="display: flex; gap: 15px; align-items: center;">
             <div style="display: flex; gap: 10px; align-items: center; font-size: 12px;">
               <span style="display: flex; align-items: center; gap: 5px;">
-                <div class="matrix-cell correct"></div> Correct
+                <div class="matrix-cell correct">A</div> Correct
               </span>
               <span style="display: flex; align-items: center; gap: 5px;">
-                <div class="matrix-cell incorrect"></div> Incorrect
+                <div class="matrix-cell incorrect">B</div> Incorrect
               </span>
               <span style="display: flex; align-items: center; gap: 5px;">
-                <div class="matrix-cell unanswered"></div> Unanswered
+                <div class="matrix-cell unanswered">-</div> Unanswered
               </span>
             </div>
           </div>
@@ -1048,7 +1066,7 @@ if (!localStorage.getItem("code")) {
             <thead>
               <tr>
                 <th style="min-width: 200px;">Team</th>
-                ${matrixData.questionNumbers.map(qNum => `<th>Q${qNum}</th>`).join('')}
+                ${matrixData.questionNumbers.map(qNum => `<th>Q${qNum + 1}<br></th>`).join('')}
               </tr>
             </thead>
             <tbody>
@@ -1065,14 +1083,35 @@ if (!localStorage.getItem("code")) {
                     ${matrixData.questionNumbers.map(qNum => {
                       const questionData = team.questions[qNum];
                       let cellClass = 'unanswered';
+                      let selectedChoice = '';
+                      let tooltipText = `${team.name} - Q${qNum + 1}: `;
+                      
                       if (questionData) {
                         if (typeof questionData === 'object') {
+                          // New format with selected_choice and is_correct
+                          selectedChoice = questionData.selected_choice ? 
+                            questionData.selected_choice.toUpperCase() : '?';
+                          
                           cellClass = questionData.is_correct ? 'correct' : 'incorrect';
+                          tooltipText += ` ${questionData.is_correct ? '✔' : '❌'}`;
                         } else {
-                          cellClass = 'answered'; // Legacy format
+                          // Legacy format
+                          selectedChoice = '✓';
+                          cellClass = 'answered';
+                          tooltipText += 'Answered (legacy format)';
                         }
+                      } else {
+                        selectedChoice = '-';
+                        tooltipText += 'Not answered';
                       }
-                      return `<td><div class="matrix-cell ${cellClass}"></div></td>`;
+                      
+                      return `
+                        <td title="${tooltipText}">
+                          <div class="matrix-cell ${cellClass}" onclick="jumpToQuestion(${qNum})">
+                            ${selectedChoice}
+                          </div>
+                        </td>
+                      `;
                     }).join('')}
                   </tr>
                 `;
@@ -1138,6 +1177,17 @@ if (!localStorage.getItem("code")) {
       </div>
     `;
   }
+
+  function jumpToQuestion(questionNumber) {
+    // Emit socket event to jump to question
+    socket.emit('jump to question', {
+      admin_code: state.adminCode,
+      question_index: questionNumber
+    }, (response) => {
+        navigateTo('quiz');
+    });
+  };
+  window.jumpToQuestion = jumpToQuestion
 
   function showQuestionsManagement() {
     content.innerHTML = `

@@ -442,7 +442,7 @@
     </p>
       <div style="margin-top:30px; text-align:center;">
         <button class="btn" id="startBowlBtn">Start Bowl</button>
-        <button class="btn" id="startBowlBtn" onclick="localStorage.clear(); location.reload();">Log Out</button>
+        <button class="btn" id="" onclick="localStorage.clear(); location.reload();">Log Out</button>
       </div>
     `;
 
@@ -508,6 +508,8 @@
       document.getElementById("question").textContent = "Waiting for next question...";
       return;
     }
+
+    if (question.id === state.currentQuestion.id) {return}
     
     state.currentQuestion = question;
     
