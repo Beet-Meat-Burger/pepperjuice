@@ -622,7 +622,6 @@ if (!localStorage.getItem("code")) {
     const sorted = [...teams]
       .filter(team => team[sortBy] !== undefined)
       .sort((a, b) => b[sortBy] - a[sortBy])
-      .slice(0, 10);
 
     return {
       title,
@@ -1045,7 +1044,7 @@ if (!localStorage.getItem("code")) {
       <!-- Matrix View -->
       <div class="matrix-container">
         <div class="matrix-controls">
-          <h2 style="margin: 0; color: var(--brand);">📊 Question Matrix with Choices</h2>
+          <h2 style="margin: 0; color: var(--brand);">📊 Question Matrix</h2>
           <div style="display: flex; gap: 15px; align-items: center;">
             <div style="display: flex; gap: 10px; align-items: center; font-size: 12px;">
               <span style="display: flex; align-items: center; gap: 5px;">
