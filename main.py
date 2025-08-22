@@ -343,6 +343,7 @@ def jump_to_question(json):
 
 @socketio.on("register team")
 def register(json):
+    global teamIdIncrement
     teamId = str(json.get("team_id"))
     teamNumber = json.get("team_number")
     member1 = json.get("member1")
@@ -351,7 +352,8 @@ def register(json):
     country = json.get("country")
     if not users.get(teamId):
         teamId = letters()
-        teamNumber = teamIdIncrement + 1
+        teamNumber = teamIdIncrement
+        teamIdIncrement + 1
         users[teamId] = {
             "team_number": teamNumber,
             "member1": member1,
@@ -389,4 +391,5 @@ def upload():
 
 if __name__ == '__main__':
     socketio.run(app, host="0.0.0.0", port=os.environ.get('PORT', 10000), debug=False)
+
 
